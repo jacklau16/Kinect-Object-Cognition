@@ -31,8 +31,11 @@ def main():
         count += 1
         # If we have an updated RGB image, then display
         if status.updated_rgb:
-            if (h > 0) & (w > 0):
-                cv2.rectangle(rgb, (x+x_offset, y+y_offset), (x+x_offset+w, y+y_offset+h), (0, 0, 255))
+            #if (h > 0) & (w > 0):
+            #    cv2.rectangle(rgb, (x+x_offset, y+y_offset), (x+x_offset+w, y+y_offset+h), (0, 0, 255))
+            #rgb[:,:,0] = 0
+            #rgb[:,:,1] = 0
+            print(rgb.shape)
             cv2.imshow("RGB", rgb)
             #print(f"{count}: RGB")
         # If we have an updated Depth image, then display

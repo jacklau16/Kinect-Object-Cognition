@@ -1,17 +1,20 @@
 #!/usr/bin/env python
 
 from argparse import ArgumentParser
+
+import numpy as np
+
 from FreenectPlaybackWrapper.PlaybackWrapper import FreenectPlaybackWrapper
 
 import cv2
-
+import concurrent.futures
 import objdetection
 
 def main():
 
     # load and train first
     detector = objdetection.ObjDetection()
-    detector.test_run()
+    detector.test_run_rgb()
 
     parser = ArgumentParser(description="OpenCV Demo for Kinect Coursework")
     parser.add_argument("videofolder", help="Folder containing Kinect video. Folder must contain INDEX.txt.",
@@ -59,17 +62,29 @@ def main():
 
                 # Test Run Object Recognition
 
-                if (h >= detector.grid_size) & (w >= detector.grid_size):
+                if (h >= detector.imagette_grid_size) & (w >= detector.imagette_grid_size):
                     max_score = -1
                     max_idx = -1
-                    for i in range(len(detector.objName_train)):
-                        score = detector.recognise(thresholded[y:y + h, x:x + w], i)
+                    score = np.zeros(len(detector.objName_train))
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                        futures = []
+                        for i in range(len(detector.objName_train)):
+                            #futures.append(executor.submit(detector.recognise, thresholded[y:y + h, x:x + w], i))
+                            futures.append(executor.submit(detector.recognise_rgb, rgb[y+y_offset:y+y_offset+h, x+x_offset:x+x_offset+w,:], i))
+                            cv2.imshow("rgb2", rgb[y+y_offset:y+y_offset+h, x+x_offset:x+x_offset+w,:])
+                        scores = []
+                        for future in concurrent.futures.as_completed(futures):
+                            print("Thread:", future.result()[1], future.result()[0])
+                            score[future.result()[1]] = future.result()[0]
+                        max_idx = score.argmax()
+                        print("Max idx =", max_idx)
+                        #score = detector.recognise(thresholded[y:y + h, x:x + w], i)
                         #print(detector.objName_train[i], score)
-                        if score > max_score:
-                            max_score = score
-                            max_idx = i
+                        #if score > max_score:
+                        #    max_score = score
+                        #    max_idx = i
 
-                    print("Recognition: ", detector.objName_train[max_idx], score)
+                    print("Recognition: ", detector.objName_train[max_idx], score[max_idx])
 
         if (count - lastObjCount > 80) & newClassStarted:
             classcount += 1
