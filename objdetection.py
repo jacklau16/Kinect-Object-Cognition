@@ -1,6 +1,11 @@
+import math
+import time
+import timeit
+
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.neighbors import NearestNeighbors
 import os
 
 class ObjDetection:
@@ -10,11 +15,13 @@ class ObjDetection:
         self.U_train = []
         self.imgMean_train = []
         self.objName_train = []
+        self.W_trainNNLearner = []
         self.imagette_grid_size = 20
         self.imagette_step_size = 10
         self.imgDistThreshold = 6000
         self.weightDistThreshold = 500
-
+        self.nnDistThreshold = 500
+        self.eigen_vector_used = 3
 
     def slice_image_to_imagettes(self, imgInput):
         grid_size = self.imagette_grid_size
@@ -45,16 +52,18 @@ class ObjDetection:
         #train_col = int(imgInput.shape[1] / grid_size)
         train_row = int((imgInput.shape[0] - grid_size) / step_size) + 1
         train_col = int((imgInput.shape[1] - grid_size) / step_size) + 1
-        #print(imgInput.shape, train_row, train_col)
         for row in range(train_row):
             for col in range(train_col):
                 #grid_img = imgInput[row * grid_size:row * grid_size + grid_size, col * grid_size:col * grid_size + grid_size]
                 grid_img = imgInput[row*step_size:row*step_size+grid_size, col*step_size:col*step_size+grid_size, :]
                 #print(row*step_size, row*step_size+grid_size, col*step_size, col*step_size+grid_size)
-                #plt.imshow(grid_img, 'gray')
-                #plt.show()
-                #train_set[:,row*train_row+col] = grid_img.reshape(grid_size*grid_size)
-                train_set.append(grid_img.flatten())
+                # Detect if there is any edge in the imagette, discard it if non detected
+                edges = cv2.Canny(grid_img, 100, 200)
+                if np.max(edges)==255:
+                    #print("EDGE DETECTED!")
+                    #train_set[:,row*train_row+col] = grid_img.reshape(grid_size*grid_size)
+                    train_set.append(grid_img.flatten())
+        #print(f"Input shape: {imgInput.shape}, {train_row}, {train_col}, output size: {len(train_set)}")
 
         return np.array(train_set).T
 
@@ -100,7 +109,7 @@ class ObjDetection:
 
     def train(self, imgFile, labelTrain):
 
-        eigen_vector_used = 10
+        eigen_vector_used = self.eigen_vector_used
 
         imgTrain = self.read_and_trunc_img(imgFile)
 
@@ -160,18 +169,18 @@ class ObjDetection:
 
         return W, U_sub, imgMean
 
-    def recognise_imagette(self, imgInput, imgMean, W, U):
+    def recognise_imagette(self, imgInput, imgMean, W, U, nnLearner):
 
         imgDistThreshold = self.imgDistThreshold
         weightDistThreshold = self.weightDistThreshold
-
+        nnDistThreshold = self.nnDistThreshold
         X_input = imgInput - imgMean
         W_input = U.T @ X_input
         imgRecon = U @ W_input
         imgRecon = imgRecon + imgMean
-
         # Compute the Euclidean distance of two matrices using matrix norm
-        dist = np.linalg.norm(imgInput - imgRecon)
+        #dist = np.linalg.norm(imgInput - imgRecon)
+        dist = self.euclidean_distance(imgInput, imgRecon)
 
         if dist > imgDistThreshold:
             print("Reconstructed Image has too large distance from original:", dist)
@@ -179,16 +188,28 @@ class ObjDetection:
      #   print("Image Distance: ", dist)
 
         matchedCount = 0
+
+        # Method 1: search nearest neighbour from nnLearner
+        #print(W_input.T.shape, W.T.shape)
+        dist, ind = nnLearner.kneighbors([W_input.T], 1, return_distance=True)
+        #print("nearest neighbour, dist =",dist[0][0])
+        if dist[0][0] < nnDistThreshold:
+            return True
+        else:
+            return False
+
         # Compute Euclidean distance of the input image weight against all others
         # e_k = || W_k - W_r ||
+        #t0 = time.time()
         for i in range(W.shape[1]):
-            e_k = np.linalg.norm(W_input - W[:, i])
+            #e_k = np.linalg.norm(W_input - W[:, i])
+            e_k = self.euclidean_distance(W_input, W[:, i])
             if e_k < weightDistThreshold:
      #           print(f'{i}: Euclidean Distance of Weights = {e_k}')
                 matchedCount += 1
                 # exit the FOR loop if any matching found
                 break
-
+        #print("Matrix operation time:", time.time()-t0)
         if matchedCount > 0:
             return True
         else:
@@ -242,15 +263,20 @@ class ObjDetection:
 
     def recognise_rgb(self, imgInput, index):
         matchedCount = 0
+        t0 = time.time()
         imagettes = self.slice_image_to_imagettes_rgb(imgInput)
 
         for i in range(imagettes.shape[1]):
             #print(f'Recognising # {i}...')
-            if self.recognise_imagette(imagettes[:,i], self.imgMean_train[index], self.W_train[index], self.U_train[index]):
+            if self.recognise_imagette(imagettes[:,i], self.imgMean_train[index], self.W_train[index], self.U_train[index], self.W_trainNNLearner[index]):
                 matchedCount += 1
-
+        #print(f'Recognising #{i}: operation time: {time.time() - t0}')
         return matchedCount, index
         #print(f'{matchedCount} feature(s) matched.')
+
+    def euclidean_distance(self, vector1, vector2):
+        dist = [(a - b) ** 2 for a, b in zip(vector1, vector2)]
+        return math.sqrt(sum(dist))
 
     def test_run(self):
         # Giving path for training images
@@ -265,7 +291,6 @@ class ObjDetection:
             self.U_train.append(U)
             self.imgMean_train.append(imgMean)
             self.objName_train.append(objName)
-
         testIdx = 0
         imgTest = self.read_and_trunc_img(f'{trainPath}/{trainImgFiles[testIdx]}')
         print("Test Object:", self.objName_train[testIdx])
@@ -274,7 +299,7 @@ class ObjDetection:
             print("Recognising", self.objName_train[i],'...')
             self.recognise(imgTest, i)
 
-    def test_run_rgb(self):
+    def test_run_rgb(self, testRecognition=False):
         # Giving path for training images
         trainPath = './train_rgb/'
         # Readling all the images and storing into an array
@@ -287,15 +312,22 @@ class ObjDetection:
             self.U_train.append(U)
             self.imgMean_train.append(imgMean)
             self.objName_train.append(objName)
+            # Store weights into Nearest Neighbour Leaner
+            #nnLearner = NearestNeighbors(algorithm='ball_tree', n_jobs=-1)
+            nnLearner = NearestNeighbors(algorithm='auto')
+            nnLearner.fit(W.T)
+            self.W_trainNNLearner.append(nnLearner)
+        print(self.objName_train)
 
-        testIdx = 2
-        imgTest = self.read_and_trunc_img_rgb(f'{trainPath}/{trainImgFiles[testIdx]}')
-        print("Test Object:", self.objName_train[testIdx])
+        if testRecognition:
+            testIdx = 2
+            imgTest = self.read_and_trunc_img_rgb(f'{trainPath}/{trainImgFiles[testIdx]}')
+            print("Test Object:", self.objName_train[testIdx])
 
-        for i in range(len(self.objName_train)):
-            print("Recognising", self.objName_train[i],'...')
-            matchedCount, index = self.recognise_rgb(imgTest, i)
-            print("Matched count = ", matchedCount)
+            for i in range(len(self.objName_train)):
+                print("Recognising", self.objName_train[i],'...')
+                matchedCount, index = self.recognise_rgb(imgTest, i)
+                print("Matched count = ", matchedCount)
 
 
 
