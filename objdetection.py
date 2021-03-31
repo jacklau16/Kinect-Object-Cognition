@@ -1,3 +1,4 @@
+import concurrent
 import math
 import time
 import timeit
@@ -266,10 +267,21 @@ class ObjDetection:
         t0 = time.time()
         imagettes = self.slice_image_to_imagettes_rgb(imgInput)
 
-        for i in range(imagettes.shape[1]):
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            futures = []
+            for i in range(imagettes.shape[1]):
+                futures.append(executor.submit(self.recognise_imagette, imagettes[:,i], self.imgMean_train[index],
+                                               self.W_train[index], self.U_train[index], self.W_trainNNLearner[index]))
+
+            for future in concurrent.futures.as_completed(futures):
+                # print("Thread:", future.result()[1], future.result()[0])
+                if future.result():
+                    matchedCount += 1
+
+        #for i in range(imagettes.shape[1]):
             #print(f'Recognising # {i}...')
-            if self.recognise_imagette(imagettes[:,i], self.imgMean_train[index], self.W_train[index], self.U_train[index], self.W_trainNNLearner[index]):
-                matchedCount += 1
+        #    if self.recognise_imagette(imagettes[:,i], self.imgMean_train[index], self.W_train[index], self.U_train[index], self.W_trainNNLearner[index]):
+        #        matchedCount += 1
         #print(f'Recognising #{i}: operation time: {time.time() - t0}')
         return matchedCount, index
         #print(f'{matchedCount} feature(s) matched.')
