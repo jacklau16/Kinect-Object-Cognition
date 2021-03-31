@@ -20,7 +20,8 @@ def main():
 
     # load and train first
     detector = objdetection.ObjDetection()
-    detector.test_run_rgb()
+    #detector.test_run_rgb()
+    detector.train_all()
 
     parser = ArgumentParser(description="OpenCV Demo for Kinect Coursework")
     parser.add_argument("videofolder", help="Folder containing Kinect video. Folder must contain INDEX.txt.",
@@ -80,28 +81,29 @@ def main():
                     max_idx = -1
                     score = np.zeros(len(detector.objName_train))
                     t0 = time.time()
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-                        futures = []
-                        for i in range(len(detector.objName_train)):
-                            #futures.append(executor.submit(detector.recognise, thresholded[y:y + h, x:x + w], i))
-                            futures.append(executor.submit(detector.recognise_rgb, rgb[y+y_offset:y+y_offset+h, x+x_offset:x+x_offset+w,:], i))
-                            if showImg:
-                                cv2.imshow("rgb2", rgb[y+y_offset:y+y_offset+h, x+x_offset:x+x_offset+w,:])
-                        scores = []
-                        for future in concurrent.futures.as_completed(futures):
-                            #print("Thread:", future.result()[1], future.result()[0])
-                            score[future.result()[1]] = future.result()[0]
-                        max_idx = score.argmax()
-                        #print("Max idx =", max_idx)
-                        recogResult.append([frameCount, classCount, max_idx, max(score)])
-                        #score = detector.recognise(thresholded[y:y + h, x:x + w], i)
-                        #print(detector.objName_train[i], score)
-                        #if score > max_score:
-                        #    max_score = score
-                        #    max_idx = i
+
+                    imgTest = rgb[y+y_offset:y+y_offset+h, x+x_offset:x+x_offset+w,:]
+                    scores = detector.recognise_rgb2(imgTest)
+                    #print("Scores:", scores)
+                    max_idx = scores.argmax()
+                    recogResult.append([frameCount, classCount, max_idx, max(scores)])
+
+                    # with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                    #     futures = []
+                    #     for i in range(len(detector.objName_train)):
+                    #         #futures.append(executor.submit(detector.recognise, thresholded[y:y + h, x:x + w], i))
+                    #         futures.append(executor.submit(detector.recognise_rgb, rgb[y+y_offset:y+y_offset+h, x+x_offset:x+x_offset+w,:], i))
+                    #         if showImg:
+                    #             cv2.imshow("rgb2", rgb[y+y_offset:y+y_offset+h, x+x_offset:x+x_offset+w,:])
+                    #     scores = []
+                    #     for future in concurrent.futures.as_completed(futures):
+                    #         #print("Thread:", future.result()[1], future.result()[0])
+                    #         score[future.result()[1]] = future.result()[0]
+                    #     max_idx = score.argmax()
+                    #     recogResult.append([frameCount, classCount, max_idx, max(score)])
+
                     t1 = time.time()
-                    #print("Recognition time:", t1-t0)
-                    print("Recognition: ", detector.objName_train[max_idx], score[max_idx], t1-t0)
+                    print("Recognition: ", detector.objName_train[max_idx], scores[max_idx], t1-t0)
 
         if (frameCount - lastObjCount > 80) & newClassStarted:
             classCount += 1
