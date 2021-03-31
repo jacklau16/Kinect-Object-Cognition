@@ -47,9 +47,6 @@ def main():
     startTime = time.time()
 
     for status, rgb, depth in FreenectPlaybackWrapper(args.videofolder, not args.no_realtime):
-        if classCount >= 3:
-            break
-
         frameCount += 1
         # If we have an updated RGB image, then display
         if status.updated_rgb:
@@ -76,7 +73,7 @@ def main():
 
                 # Test Run Object Recognition
 
-                if (h >= detector.imagette_grid_size) & (w >= detector.imagette_grid_size):
+                if (h >= detector.imagette_grid_size) & (w >= detector.imagette_grid_size) & (rgb is not None):
                     max_score = -1
                     max_idx = -1
                     score = np.zeros(len(detector.objName_train))
@@ -86,8 +83,11 @@ def main():
                     scores = detector.recognise_rgb2(imgTest)
                     #print("Scores:", scores)
                     max_idx = scores.argmax()
+                    conf_level = scores[max_idx] / np.sum(scores)
                     recogResult.append([frameCount, classCount, max_idx, max(scores)])
 
+                    cv2.putText(rgb, classLabels[max_idx] + " ({:.0f}%)".format(conf_level*100), (50, 50), cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
+                    cv2.imshow("RGB", rgb)
                     # with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
                     #     futures = []
                     #     for i in range(len(detector.objName_train)):

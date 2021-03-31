@@ -13,51 +13,64 @@ def main():
     parser.add_argument("--no-realtime", action="store_true", default=True)
     args = parser.parse_args()
 
-    count = 0
-    classcount = 0
-    lastObjCount = 0
+    frameCount = 0
+    classCount = 0
+    lastObjFrameCount = 0
     newClassStarted = False
+    trainImgCaptured = False
 
+    interClassFrameThresVal = 70
     thresVal = 80
     x_offset = -40
     y_offset = 20
 
+    outDir = "./train_rgb/"
     labelFile = open('Set1Labels.txt', 'r')
     classLabels = labelFile.read().splitlines()
+    trainFrames = [301, 800, 1351, 1751, 2371, 3001, 3501, 4200, 4800, 5400, 6101, 6401, 7001, 7451]
+
     w = 0
     h = 0
 
     for status, rgb, depth in FreenectPlaybackWrapper(args.videofolder, not args.no_realtime):
-        count += 1
+        frameCount += 1
+        if classCount == len(trainFrames):
+            break
         # If we have an updated RGB image, then display
         if status.updated_rgb:
-            if (h > 0) & (w > 0):
-                cv2.rectangle(rgb, (x+x_offset, y+y_offset), (x+x_offset+w, y+y_offset+h), (0, 0, 255))
-            #rgb[:,:,0] = 0
-            #rgb[:,:,1] = 0
-            #print(rgb.shape)
+            #if (h > 0) & (w > 0):
+            #    cv2.rectangle(rgb, (x+x_offset, y+y_offset), (x+x_offset+w, y+y_offset+h), (0, 0, 255))
             cv2.imshow("RGB", rgb)
-            print(f"Frame # {count}: RGB")
-        # If we have an updated Depth image, then display
+            print(f"Frame # {frameCount}: RGB")
+
+            if (trainImgCaptured is not True) & (h > 0) & (w > 0) & (frameCount >= trainFrames[classCount]):
+                outFileName = outDir + "{:02d}.jpg".format(classCount+1)
+                # Only save the ROI with using the object boundary detected in the last Depth frame
+                outImg = rgb[y+y_offset:y+y_offset+h, x+x_offset:x+x_offset+w,:]
+                print("Saving train image as", outFileName)
+                cv2.imwrite(outFileName, outImg)
+                trainImgCaptured = True
+
+        # If we have an updated Depth image, then use it to capture the region of interest
         if status.updated_depth:
-            #lastObjCount = count
-            #cv2.imshow("Depth", depth)
-            #print(f"{count}: DEPTH")
+            # Use cv2.threshold() to find out the object boundary
             ret, thresholded = cv2.threshold(depth, thresVal, 255, cv2.THRESH_BINARY_INV)
             x, y, w, h = cv2.boundingRect(thresholded)
-            #print(x, y, w, h)
-            if (h>0) & (w>0):
-                cv2.putText(depth, classLabels[classcount], (50,50), cv2.FONT_HERSHEY_PLAIN, 2, (255,0,0), 2)
+
+
+            if (h > 0) & (w > 0):
+                cv2.putText(depth, classLabels[classCount], (50,50), cv2.FONT_HERSHEY_PLAIN, 2, (255,0,0), 2)
                 cv2.rectangle(depth, (x,y), (x+w, y+h), (0,0,255))
                 cv2.imshow("Depth", depth)
-                lastObjCount = count
+                lastObjFrameCount = frameCount
                 newClassStarted = True
 
-        if (count - lastObjCount > 80) & newClassStarted:
-            classcount += 1
+        if (frameCount - lastObjFrameCount > interClassFrameThresVal) & newClassStarted:
+            classCount += 1
             newClassStarted = False
+            trainImgCaptured = False
 
-        #print(count, lastObjCount, newClassStarted)
+        #print(count, lastObjFrameCount, newClassStarted)
         # Check for Keyboard input.
         key = cv2.waitKey(10)
 

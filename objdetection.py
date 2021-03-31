@@ -15,7 +15,6 @@ class ObjDetection:
         self.W_train = []
         self.U_train = []
         self.imgMean_train = []
-        self.objName_train = []
         self.objIdx_train = []
         self.W_trainNNLearner = []
         self.imagette_grid_size = 20
@@ -23,7 +22,12 @@ class ObjDetection:
         self.imgDistThreshold = 6000
         self.weightDistThreshold = 500
         self.nnDistThreshold = 500
-        self.eigen_vector_used = 3
+        self.eigen_vector_used = 10
+        trainLabelFile = './Set1Labels.txt'
+        testLabelFile = './Set2Labels.txt'
+
+        labelFile = open('Set1Labels.txt', 'r')
+        self.objName_train = labelFile.read().splitlines()
 
     def slice_image_to_imagettes(self, imgInput):
         grid_size = self.imagette_grid_size
@@ -320,7 +324,7 @@ class ObjDetection:
             self.W_train.append(W)
             self.U_train.append(U)
             self.imgMean_train.append(imgMean)
-            self.objName_train.append(objName)
+            #self.objName_train.append(objName)
         testIdx = 0
         imgTest = self.read_and_trunc_img(f'{trainPath}/{trainImgFiles[testIdx]}')
         print("Test Object:", self.objName_train[testIdx])
@@ -417,13 +421,17 @@ class ObjDetection:
         self.W_trainNNLearner = nnLearner
 
         if testRecognition:
-            testIdx = 2
-            imgTest = self.read_and_trunc_img_rgb(f'{trainPath}/{trainImgFiles[testIdx]}')
-            print("Test Object:", self.objName_train[testIdx])
-
-            #print("Recognising", self.objName_train[i], '...')
-            regResult = self.recognise_rgb2(imgTest)
-            print("Recognition Result:", regResult)
+            # Giving path for training images
+            testPath = './train_rgb/'
+            # Readling all the images and storing into an array
+            testImgFiles = os.listdir(testPath)
+            for testIdx, testImgFile in zip(range(len(testImgFiles)), testImgFiles):
+                imgTest = self.read_and_trunc_img_rgb(f'{testPath}/{testImgFile}')
+                print("Test Object:", testImgFile)
+                #print("Recognising", self.objName_train[i], '...')
+                scores = self.recognise_rgb2(imgTest)
+                max_idx = scores.argmax()
+                print("Recognition Result:", max_idx, max(scores))
             #    matchedCount, index = self.recognise_rgb(imgTest, i)
 
 
