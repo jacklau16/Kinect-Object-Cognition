@@ -5,7 +5,9 @@ from argparse import ArgumentParser
 import numpy as np
 import pandas as pd
 import time
-
+import seaborn as sn
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
 from FreenectPlaybackWrapper.PlaybackWrapper import FreenectPlaybackWrapper
 
 import cv2
@@ -14,13 +16,11 @@ import objdetection
 
 def main():
 
-    showImg = False
-    # Recognition result: Frame#, true label, predicted label
-    recogResult = [['Frame#', 'True Label', 'Predicted Label', 'Score']]
+    showRGBImg = False
+    showDepthImg = False
 
     # load and train first
     detector = objdetection.ObjDetection()
-    #detector.test_run_rgb()
     detector.train_all()
 
     parser = ArgumentParser(description="OpenCV Demo for Kinect Coursework")
@@ -34,27 +34,29 @@ def main():
     classCount = 0
     lastObjCount = 0
     newClassStarted = False
+    interClassFrameThresVal = 70
 
     thresVal = 80
-    x_offset = -40
-    y_offset = 30
-
-    labelFile = open('Set1Labels.txt', 'r')
+    x_offset, y_offset = -40, 20
+    labelFile = open('Set2Labels.txt', 'r')
     classLabels = labelFile.read().splitlines()
-    w = 0
-    h = 0
+    w, h = 0, 0
+    recogResult = []
 
     startTime = time.time()
 
     for status, rgb, depth in FreenectPlaybackWrapper(args.videofolder, not args.no_realtime):
         frameCount += 1
+        if classCount == len(classLabels):
+            break
         # If we have an updated RGB image, then display
         if status.updated_rgb:
             #if (h > 0) & (w > 0):
                 #cv2.rectangle(rgb, (x+x_offset, y+y_offset), (x+x_offset+w, y+y_offset+h), (0, 0, 255))
-            if showImg:
-                cv2.imshow("RGB", rgb)
+            #if showImg:
+            #    cv2.imshow("RGB", rgb)
             #print(f"{count}: RGB")
+            a = 1
         # If we have an updated Depth image, then display
         if status.updated_depth:
             #lastObjCount = count
@@ -66,10 +68,11 @@ def main():
             if (h>0) & (w>0):
                 cv2.putText(depth, classLabels[classCount], (50,50), cv2.FONT_HERSHEY_PLAIN, 2, (255,0,0), 2)
     #            cv2.rectangle(depth, (x,y), (x+w, y+h), (0,0,255))
-                if showImg:
+                if showDepthImg:
                     cv2.imshow("Depth", depth)
                 lastObjCount = frameCount
                 newClassStarted = True
+                predictedLabel = ''
 
                 # Test Run Object Recognition
 
@@ -80,32 +83,31 @@ def main():
                     t0 = time.time()
 
                     imgTest = rgb[y+y_offset:y+y_offset+h, x+x_offset:x+x_offset+w,:]
+
+                    if detector.resizeImage:
+                        imgTest = cv2.resize(imgTest, (200, 200), interpolation=cv2.INTER_AREA)
+
                     scores = detector.recognise_rgb2(imgTest)
-                    #print("Scores:", scores)
                     max_idx = scores.argmax()
-                    conf_level = scores[max_idx] / np.sum(scores)
-                    recogResult.append([frameCount, classCount, max_idx, max(scores)])
-
-                    cv2.putText(rgb, classLabels[max_idx] + " ({:.0f}%)".format(conf_level*100), (50, 50), cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
-                    cv2.imshow("RGB", rgb)
-                    # with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-                    #     futures = []
-                    #     for i in range(len(detector.objName_train)):
-                    #         #futures.append(executor.submit(detector.recognise, thresholded[y:y + h, x:x + w], i))
-                    #         futures.append(executor.submit(detector.recognise_rgb, rgb[y+y_offset:y+y_offset+h, x+x_offset:x+x_offset+w,:], i))
-                    #         if showImg:
-                    #             cv2.imshow("rgb2", rgb[y+y_offset:y+y_offset+h, x+x_offset:x+x_offset+w,:])
-                    #     scores = []
-                    #     for future in concurrent.futures.as_completed(futures):
-                    #         #print("Thread:", future.result()[1], future.result()[0])
-                    #         score[future.result()[1]] = future.result()[0]
-                    #     max_idx = score.argmax()
-                    #     recogResult.append([frameCount, classCount, max_idx, max(score)])
-
                     t1 = time.time()
-                    print("Recognition: ", detector.objName_train[max_idx], scores[max_idx], t1-t0)
+                    if max(scores) > 0:
+                        conf_level = scores[max_idx] / np.sum(scores)
+                        predictedLabel = detector.objName_train[max_idx]
+                        #recogResult.append([frameCount, classCount, max_idx, max(scores), conf_level])
+                        recogResult.append([frameCount, classLabels[classCount], predictedLabel, max(scores), conf_level])
+                        print("Recognition:", classLabels[classCount], detector.objName_train[max_idx], scores[max_idx], t1 - t0)
+                    else:
+                        # not recognised
+                        conf_level = 0
+                        predictedLabel = "UNRECOGNISED"
+                        recogResult.append([frameCount, classLabels[classCount], predictedLabel, 0, 0])
+                        print("Recognition:", "[UNRECOGNISED]", 0, t1 - t0)
 
-        if (frameCount - lastObjCount > 80) & newClassStarted:
+                    if showRGBImg:
+                        cv2.putText(rgb, predictedLabel + " ({:.0f}%)".format(conf_level*100), (50, 50), cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
+                        cv2.imshow("RGB", rgb)
+
+        if (frameCount - lastObjCount > interClassFrameThresVal) & newClassStarted:
             classCount += 1
             newClassStarted = False
 
@@ -120,10 +122,29 @@ def main():
     endTime = time.time()
     print("Duration:", endTime-startTime)
     dfResult = pd.DataFrame(recogResult)
+    dfResult.columns = ['Frame#', 'True Label', 'Predicted Label', 'Score', 'Conf. Level']
     dfResult.to_csv("result.csv")
+    plot_cm(classLabels)
     return 0
 
-#def detect_edges(imgInput):
+def plot_cm(classLabels):
+    classList = ["UNRECOGNISED"]
+    classList.extend(classLabels)
+    results = pd.read_csv('result.csv')
+    cm = confusion_matrix(results['True Label'], results['Predicted Label'], labels=classList)
+    #cm_normalized = cm / cm.sum(axis=0)
+    #cm_normalized = np.nan_to_num(cm_normalized) # replace NaN with zero
+    #cm_normalized[cm_normalized == np.inf] = 0
+    df_cm = pd.DataFrame(cm, index=classList, columns=classList)
+    #df_cm_normalized = pd.DataFrame(cm_normalized, index=classList, columns=classList)
+    np.set_printoptions(precision=2)
+    plt.figure(figsize=(10, 7))
+    sn.heatmap(df_cm, annot=True, fmt='d', cmap=plt.cm.Blues)
+    plt.ylabel("True Label")
+    plt.xlabel("Predicted Label")
+    plt.show()
+
+
 
 if __name__ == "__main__":
     exit(main())

@@ -11,6 +11,7 @@ scipy = "~=1.6.1"
 scikit-learn = "~=0.24.1"
 matplotlib = "^3.4.0"
 pandas = "*"
+seaborn = "*"
 
 [tool.poetry.dev-dependencies]
 

@@ -1,12 +1,13 @@
 import concurrent
 import math
 import time
-import timeit
+import pandas as pd
 
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.neighbors import NearestNeighbors
+from sklearn.neighbors import KNeighborsClassifier
 import os
 
 class ObjDetection:
@@ -23,6 +24,8 @@ class ObjDetection:
         self.weightDistThreshold = 500
         self.nnDistThreshold = 500
         self.eigen_vector_used = 10
+        self.resizeImage = True
+
         trainLabelFile = './Set1Labels.txt'
         testLabelFile = './Set2Labels.txt'
 
@@ -146,7 +149,7 @@ class ObjDetection:
 
     def train_rgb(self, imgFile, labelTrain):
 
-        eigen_vector_used = 10
+        eigen_vector_used = self.eigen_vector_used
 
         imgTrain = self.read_and_trunc_img_rgb(imgFile)
 
@@ -226,6 +229,8 @@ class ObjDetection:
         imgDistThreshold = self.imgDistThreshold
         weightDistThreshold = self.weightDistThreshold
         nnDistThreshold = self.nnDistThreshold
+        eigen_vector_used = self.eigen_vector_used
+
         X_input = imgInput - imgMean
         W_input = U.T @ X_input
         imgRecon = U @ W_input
@@ -241,14 +246,16 @@ class ObjDetection:
 
         # Method 1: search nearest neighbour from nnLearner
         #print("nnLearner.kneighbors:",W_input.T.shape, W.T.shape)
-        dist, ind = nnLearner.kneighbors([W_input.T[0:10]], 1, return_distance=True)
+        #dist, ind = nnLearner.kneighbors([W_input.T[0:eigen_vector_used]], 1, return_distance=True)
         # print("nearest neighbour, dist =",dist[0][0])
-        if dist[0][0] < nnDistThreshold:
+        #if dist[0][0] < nnDistThreshold:
             #print("Matched:", self.objName_train[ind[0][0]])
-            return self.objIdx_train[ind[0][0]]
-        else:
-            return -1
+        #    return self.objIdx_train[ind[0][0]]
+        #else:
+        #    return -1
 
+        # Method 1: predict output by K-nearest neighbour learner
+        return nnLearner.predict([W_input.T[0:eigen_vector_used]])[0]
 
     def recognise(self, imgInput, index):
         matchedCount = 0
@@ -290,8 +297,11 @@ class ObjDetection:
         matchedCount = 0
         t0 = time.time()
         imagettes = self.slice_image_to_imagettes_rgb(imgInput)
-
         regResult = np.zeros((len(self.objName_train),))
+
+        # if no meaningful imagette is found, simply return 0s
+        if imagettes.shape[0] == 0:
+            return regResult
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             futures = []
@@ -363,7 +373,7 @@ class ObjDetection:
                 matchedCount, index = self.recognise_rgb(imgTest, i)
                 print("Matched count = ", matchedCount)
 
-    def train_all(self, testRecognition=False):
+    def train_all(self, testRecognition=False, exportWeights=False):
         # Giving path for training images
         trainPath = './train_rgb/'
         # Readling all the images and storing into an array
@@ -376,11 +386,13 @@ class ObjDetection:
             objName = os.path.splitext(trainImgFile)[0]
             #W, U, imgMean = self.train_rgb(f'{trainPath}/{trainImgFile}', objName)
 
-            eigen_vector_used = 10
             self.objName_train.append(objName)
             imgTrain = self.read_and_trunc_img_rgb(f'{trainPath}/{trainImgFile}')
 
             if imgTrain is not None:
+                if self.resizeImage:
+                    imgTrain = cv2.resize(imgTrain, (200, 200), interpolation=cv2.INTER_AREA)
+
                 new_train_set = self.slice_image_to_imagettes_rgb(imgTrain)
                 print('New Train Set:',new_train_set.shape)
                 if train_set is None:
@@ -416,9 +428,14 @@ class ObjDetection:
         print("W:",W.shape, "W.T:", W.T.shape, "U:", U.shape)
         # Store weights into Nearest Neighbour Leaner
         # nnLearner = NearestNeighbors(algorithm='ball_tree', n_jobs=-1)
-        nnLearner = NearestNeighbors(algorithm='auto')
-        nnLearner.fit(W.T)
+        #nnLearner = NearestNeighbors(algorithm='auto')
+        nnLearner = KNeighborsClassifier(n_neighbors=5)
+        nnLearner.fit(W.T, objIdx)
         self.W_trainNNLearner = nnLearner
+        if exportWeights:
+            dfResult = pd.DataFrame(W.T)
+            dfResult['class'] = self.objIdx_train
+            dfResult.to_csv("weights.csv")
 
         if testRecognition:
             # Giving path for training images
@@ -427,6 +444,8 @@ class ObjDetection:
             testImgFiles = os.listdir(testPath)
             for testIdx, testImgFile in zip(range(len(testImgFiles)), testImgFiles):
                 imgTest = self.read_and_trunc_img_rgb(f'{testPath}/{testImgFile}')
+                if self.resizeImage:
+                    imgTest = cv2.resize(imgTest, (200, 200), interpolation=cv2.INTER_AREA)
                 print("Test Object:", testImgFile)
                 #print("Recognising", self.objName_train[i], '...')
                 scores = self.recognise_rgb2(imgTest)
