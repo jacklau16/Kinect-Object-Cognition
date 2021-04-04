@@ -18,7 +18,7 @@ def main():
     lastObjCount = 0
     newClassStarted = False
 
-    thresVal = 80
+    thresVal = 75
     x_offset = -40
     y_offset = 20
 

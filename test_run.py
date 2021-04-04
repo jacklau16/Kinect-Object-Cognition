@@ -12,7 +12,7 @@ from FreenectPlaybackWrapper.PlaybackWrapper import FreenectPlaybackWrapper
 
 import cv2
 import concurrent.futures
-import objdetection
+import objdetection2
 
 def main():
 
@@ -20,7 +20,7 @@ def main():
     showDepthImg = False
 
     # load and train first
-    detector = objdetection.ObjDetection()
+    detector = objdetection2.ObjDetection2()
     detector.train_all()
 
     parser = ArgumentParser(description="OpenCV Demo for Kinect Coursework")
@@ -36,7 +36,7 @@ def main():
     newClassStarted = False
     interClassFrameThresVal = 70
 
-    thresVal = 80
+    thresVal = 75
     x_offset, y_offset = -40, 20
     labelFile = open('Set2Labels.txt', 'r')
     classLabels = labelFile.read().splitlines()
@@ -106,6 +106,7 @@ def main():
                     if showRGBImg:
                         cv2.putText(rgb, predictedLabel + " ({:.0f}%)".format(conf_level*100), (50, 50), cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
                         cv2.imshow("RGB", rgb)
+                        cv2.imshow("RGB2", imgTest)
 
         if (frameCount - lastObjCount > interClassFrameThresVal) & newClassStarted:
             classCount += 1
@@ -132,14 +133,19 @@ def plot_cm(classLabels):
     classList.extend(classLabels)
     results = pd.read_csv('result.csv')
     cm = confusion_matrix(results['True Label'], results['Predicted Label'], labels=classList)
-    #cm_normalized = cm / cm.sum(axis=0)
-    #cm_normalized = np.nan_to_num(cm_normalized) # replace NaN with zero
-    #cm_normalized[cm_normalized == np.inf] = 0
+    cm_normalised = confusion_matrix(results['True Label'], results['Predicted Label'], labels=classList, normalize='true')
+    print("Overall accuracy:",cm.diagonal().sum() / cm.sum())
     df_cm = pd.DataFrame(cm, index=classList, columns=classList)
-    #df_cm_normalized = pd.DataFrame(cm_normalized, index=classList, columns=classList)
+    df_cm_normalised = pd.DataFrame(cm_normalised, index=classList, columns=classList)
     np.set_printoptions(precision=2)
-    plt.figure(figsize=(10, 7))
-    sn.heatmap(df_cm, annot=True, fmt='d', cmap=plt.cm.Blues)
+    plt.figure(figsize=(10, 8))
+    ax = sn.heatmap(df_cm, annot=True, fmt='d', cmap=plt.cm.Blues)
+    ax.figure.tight_layout()
+    plt.ylabel("True Label")
+    plt.xlabel("Predicted Label")
+    plt.show()
+    plt.figure(figsize=(10, 8))
+    sn.heatmap(df_cm_normalised, annot=True, fmt='.2f', cmap=plt.cm.Blues)
     plt.ylabel("True Label")
     plt.xlabel("Predicted Label")
     plt.show()
