@@ -28,6 +28,7 @@ class ObjDetection2:
         self.eigen_vector_used = 20
         self.resizeImage = True
         self.equaliseHistogram = True
+        self.useCannyDetection = True
 
         trainLabelFile = './Set1Labels.txt'
         testLabelFile = './Set2Labels.txt'
@@ -70,10 +71,13 @@ class ObjDetection2:
                 grid_img = imgInput[row*step_size:row*step_size+grid_size, col*step_size:col*step_size+grid_size, :]
                 #print(row*step_size, row*step_size+grid_size, col*step_size, col*step_size+grid_size)
                 # Detect if there is any edge in the imagette, discard it if non detected
-                edges = cv2.Canny(grid_img, 100, 200)
-                if np.max(edges)==255:
+                if self.useCannyDetection:
+                    edges = cv2.Canny(grid_img, 100, 200)
+                    if np.max(edges)==255:
                     #print("EDGE DETECTED!")
                     #train_set[:,row*train_row+col] = grid_img.reshape(grid_size*grid_size)
+                        train_set.append(grid_img.flatten())
+                else:
                     train_set.append(grid_img.flatten())
         #print(f"Input shape: {imgInput.shape}, {train_row}, {train_col}, output size: {len(train_set)}")
 
@@ -377,9 +381,9 @@ class ObjDetection2:
                 print("Matched count = ", matchedCount)
 
     def train_all(self, testRecognition=False, exportWeights=False):
-        # Giving path for training images
+        # Specifying the path for training images
         trainPath = './train_rgb_hist/'
-        # Readling all the images and storing into an array
+        # Reading all the images and storing into an array
         trainImgFiles = os.listdir(trainPath)
         eigen_vector_used = self.eigen_vector_used
         train_set = None
@@ -395,7 +399,15 @@ class ObjDetection2:
             if imgTrain is not None:
                 classID = int(trainImgFile.split('-')[0])-1
                 if self.resizeImage:
-                    imgTrain = cv2.resize(imgTrain, (200, 200), interpolation=cv2.INTER_AREA)
+                    resized_w = 200
+                    resized_h = 200
+                    #resized_h = int(resized_w / imgTrain.shape[1] * imgTrain.shape[0])
+                    imgTrain = cv2.resize(imgTrain, (resized_w, resized_h), interpolation=cv2.INTER_AREA)
+
+                if self.equaliseHistogram:
+                    imgTrain[:, :, 0] = cv2.equalizeHist(imgTrain[:, :, 0])
+                    imgTrain[:, :, 1] = cv2.equalizeHist(imgTrain[:, :, 1])
+                    imgTrain[:, :, 2] = cv2.equalizeHist(imgTrain[:, :, 2])
 
                 new_train_set = self.slice_image_to_imagettes_rgb(imgTrain)
                 #print('New Train Set:',new_train_set.shape)
@@ -458,7 +470,10 @@ class ObjDetection2:
                     imgTest[:, :, 1] = cv2.equalizeHist(imgTest[:, :, 1])
                     imgTest[:, :, 2] = cv2.equalizeHist(imgTest[:, :, 2])
                 if self.resizeImage:
-                    imgTest = cv2.resize(imgTest, (200, 200), interpolation=cv2.INTER_AREA)
+                    resized_w = 200
+                    resized_h = 200
+                    #resized_h = int(resized_w / imgTest.shape[1] * imgTest.shape[0])
+                    imgTest = cv2.resize(imgTest, (resized_w, resized_h), interpolation=cv2.INTER_AREA)
                 print("Test Object:", testImgFile)
                 #print("Recognising", self.objName_train[i], '...')
                 scores = self.recognise_rgb2(imgTest)
@@ -483,7 +498,10 @@ class ObjDetection2:
             if imgTrain is not None:
                 classID = int(trainImgFile.split('-')[0]) - 1
                 if self.resizeImage:
-                    imgTrain = cv2.resize(imgTrain, (200, 200), interpolation=cv2.INTER_AREA)
+                    resized_w = 200
+                    resized_h = 200
+                    #resized_h = int(resized_w / imgTrain.shape[1] * imgTrain.shape[0])
+                    imgTrain = cv2.resize(imgTrain, (resized_w, resized_h), interpolation=cv2.INTER_AREA)
 
                 new_train_set = self.slice_image_to_imagettes_hist(imgTrain)
                 print('New Train Set:',new_train_set.shape)
@@ -536,13 +554,16 @@ class ObjDetection2:
         for row in range(train_row):
             for col in range(train_col):
                 grid_img = imgInput[row*step_size:row*step_size+grid_size, col*step_size:col*step_size+grid_size, :]
-                # Detect if there is any edge in the imagette, discard it if non detected
-                edges = cv2.Canny(grid_img, 100, 200)
-                if np.max(edges)==255:
-                    #train_set.append(grid_img.flatten())
+                if self.useCannyDetection:
+                    # Detect if there is any edge in the imagette, discard it if non detected
+                    edges = cv2.Canny(grid_img, 100, 200)
+                    if np.max(edges)==255:
+                        hist = cv2.calcHist([grid_img], [0], None, [256], [0, 256])
+                        train_set.extend(hist.T)
+                else:
                     hist = cv2.calcHist([grid_img], [0], None, [256], [0, 256])
-                    #print("Hist shape:",hist.shape)
                     train_set.extend(hist.T)
+
         print(f"Input shape: {imgInput.shape}, {train_row}, {train_col}, output size: {len(train_set)}")
 
         return np.array(train_set).T

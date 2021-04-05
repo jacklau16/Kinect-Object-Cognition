@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 from argparse import ArgumentParser
 
 import numpy as np
@@ -16,7 +14,7 @@ import objdetection2
 
 def main():
 
-    showRGBImg = False
+    showRGBImg = True
     showDepthImg = False
 
     # load and train first
@@ -55,13 +53,13 @@ def main():
                 #cv2.rectangle(rgb, (x+x_offset, y+y_offset), (x+x_offset+w, y+y_offset+h), (0, 0, 255))
             #if showImg:
             #    cv2.imshow("RGB", rgb)
-            #print(f"{count}: RGB")
+            #print(f"{frameCount}: RGB")
             a = 1
         # If we have an updated Depth image, then display
         if status.updated_depth:
             #lastObjCount = count
             #cv2.imshow("Depth", depth)
-            #print(f"{count}: DEPTH")
+            #print(f"{frameCount}: DEPTH")
             ret, thresholded = cv2.threshold(depth, thresVal, 255, cv2.THRESH_BINARY_INV)
             x, y, w, h = cv2.boundingRect(thresholded)
             #print(x, y, w, h)
@@ -87,26 +85,37 @@ def main():
                     if detector.resizeImage:
                         imgTest = cv2.resize(imgTest, (200, 200), interpolation=cv2.INTER_AREA)
 
+                    if detector.equaliseHistogram:
+                        imgTest[:, :, 0] = cv2.equalizeHist(imgTest[:, :, 0])
+                        imgTest[:, :, 1] = cv2.equalizeHist(imgTest[:, :, 1])
+                        imgTest[:, :, 2] = cv2.equalizeHist(imgTest[:, :, 2])
+
+
                     scores = detector.recognise_rgb2(imgTest)
                     max_idx = scores.argmax()
                     t1 = time.time()
                     if max(scores) > 0:
                         conf_level = scores[max_idx] / np.sum(scores)
-                        predictedLabel = detector.objName_train[max_idx]
-                        #recogResult.append([frameCount, classCount, max_idx, max(scores), conf_level])
-                        recogResult.append([frameCount, classLabels[classCount], predictedLabel, max(scores), conf_level])
-                        print("Recognition:", classLabels[classCount], detector.objName_train[max_idx], scores[max_idx], t1 - t0)
+                        if conf_level > 0.2:
+                            predictedLabel = detector.objName_train[max_idx]
+                            #recogResult.append([frameCount, classCount, max_idx, max(scores), conf_level])
+                            recogResult.append([frameCount, classLabels[classCount], predictedLabel, max(scores), conf_level])
+                            print("Recognition:", classLabels[classCount], detector.objName_train[max_idx], scores[max_idx], t1 - t0)
+                        else:
+                            predictedLabel = "UNRECOGNISED"
+                            recogResult.append([frameCount, classLabels[classCount], predictedLabel, 0, 0])
+                            print("Recognition:", classLabels[classCount], "[UNRECOGNISED]", 0, t1 - t0)
                     else:
                         # not recognised
                         conf_level = 0
                         predictedLabel = "UNRECOGNISED"
                         recogResult.append([frameCount, classLabels[classCount], predictedLabel, 0, 0])
-                        print("Recognition:", "[UNRECOGNISED]", 0, t1 - t0)
+                        print("Recognition:", classLabels[classCount], "[UNRECOGNISED]", 0, t1 - t0)
 
                     if showRGBImg:
                         cv2.putText(rgb, predictedLabel + " ({:.0f}%)".format(conf_level*100), (50, 50), cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
                         cv2.imshow("RGB", rgb)
-                        cv2.imshow("RGB2", imgTest)
+                        #cv2.imshow("RGB2", imgTest)
 
         if (frameCount - lastObjCount > interClassFrameThresVal) & newClassStarted:
             classCount += 1
@@ -129,25 +138,28 @@ def main():
     return 0
 
 def plot_cm(classLabels):
-    classList = ["UNRECOGNISED"]
-    classList.extend(classLabels)
+    labelFile = open('AllLabels.txt', 'r')
+    classList = labelFile.read().splitlines()
     results = pd.read_csv('result.csv')
     cm = confusion_matrix(results['True Label'], results['Predicted Label'], labels=classList)
     cm_normalised = confusion_matrix(results['True Label'], results['Predicted Label'], labels=classList, normalize='true')
     print("Overall accuracy:",cm.diagonal().sum() / cm.sum())
     df_cm = pd.DataFrame(cm, index=classList, columns=classList)
     df_cm_normalised = pd.DataFrame(cm_normalised, index=classList, columns=classList)
-    np.set_printoptions(precision=2)
+    #np.set_printoptions(precision=2)
     plt.figure(figsize=(10, 8))
     ax = sn.heatmap(df_cm, annot=True, fmt='d', cmap=plt.cm.Blues)
     ax.figure.tight_layout()
     plt.ylabel("True Label")
     plt.xlabel("Predicted Label")
+    plt.title("Confusion matrix of object recognition")
     plt.show()
     plt.figure(figsize=(10, 8))
-    sn.heatmap(df_cm_normalised, annot=True, fmt='.2f', cmap=plt.cm.Blues)
+    ax = sn.heatmap(df_cm_normalised, annot=True, fmt='.2f', cmap=plt.cm.Blues)
+    ax.figure.tight_layout()
     plt.ylabel("True Label")
     plt.xlabel("Predicted Label")
+    plt.title("Normalised confusion matrix of object recognition")
     plt.show()
 
 

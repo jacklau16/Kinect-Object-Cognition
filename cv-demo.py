@@ -47,9 +47,11 @@ def main():
             x, y, w, h = cv2.boundingRect(thresholded)
             #print(x, y, w, h)
             if (h>0) & (w>0):
-                cv2.putText(depth, classLabels[classcount], (50,50), cv2.FONT_HERSHEY_PLAIN, 2, (255,0,0), 2)
-                cv2.rectangle(depth, (x,y), (x+w, y+h), (0,0,255))
+                #cv2.putText(depth, classLabels[classcount], (50,50), cv2.FONT_HERSHEY_PLAIN, 2, (255,0,0), 2)
+                #cv2.rectangle(depth, (x,y), (x+w, y+h), (0,0,255))
                 cv2.imshow("Depth", depth)
+                cv2.rectangle(thresholded, (x, y), (x + w, y + h), (255, 255, 255))
+                cv2.imshow("Thresholded", thresholded)
                 lastObjCount = count
                 newClassStarted = True
 

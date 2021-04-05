@@ -22,7 +22,7 @@ def main():
     #trainImgCaptured = False
 
     interClassFrameThresVal = 70
-    interImgGap = 80
+    interImgGap = 30
     thresVal = 75
     x_offset = -40
     y_offset = 20
@@ -53,10 +53,10 @@ def main():
                 # Only save the ROI with using the object boundary detected in the last Depth frame
                 outImg = rgb[y+y_offset:y+y_offset+h, x+x_offset:x+x_offset+w,:]
 
-                if equaliseHistogram:
-                    outImg[:, :, 0] = cv2.equalizeHist(outImg[:, :, 0])
-                    outImg[:, :, 1] = cv2.equalizeHist(outImg[:, :, 1])
-                    outImg[:, :, 2] = cv2.equalizeHist(outImg[:, :, 2])
+                # if equaliseHistogram:
+                #     outImg[:, :, 0] = cv2.equalizeHist(outImg[:, :, 0])
+                #     outImg[:, :, 1] = cv2.equalizeHist(outImg[:, :, 1])
+                #     outImg[:, :, 2] = cv2.equalizeHist(outImg[:, :, 2])
                 print("Saving train image as", outFileName)
                 cv2.imwrite(outFileName, outImg)
                 trainImgIdx += 1
