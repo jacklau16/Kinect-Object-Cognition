@@ -1,11 +1,10 @@
 ###################################################################################################
-# File       : capture_train_img.py
-# Description: Prepare training images by capturing a number of images of each object class
-#              from the provided video frames
-# Usage      : python capture_train_img.py <Training video dataset path>
+# File       : run_obj_recognition.py
+# Description: Load and train the Object Recogniser, then loop through the test video frames and
+#              feed images into the recogniser to perform recognition.
+# Usage      : python run_obj_recognition.py <Test video dataset path>
 ###################################################################################################
 from argparse import ArgumentParser
-
 import numpy as np
 import pandas as pd
 import cv2
@@ -24,6 +23,7 @@ def main():
     allLabelsFileName = 'AllLabels.txt'
 
     # Load and train the object recogniser first
+    print("Loading and training the object recognition model...")
     recogniser = obj_recogniser.ObjRecogniser()
     recogniser.train()
 
@@ -49,9 +49,9 @@ def main():
 
     w_roi, h_roi = 0, 0
     recogResult = []
-
     startTime = time.time()
 
+    print("Being object recognition...")
     # Loop through the video frames using Freenect library
     for status, rgb, depth in FreenectPlaybackWrapper(args.videofolder, not args.no_realtime):
         frameCount += 1
@@ -84,20 +84,23 @@ def main():
                         # Assign class label only if the confidence level > threshold value
                         if conf_level > recogniser.confLevelThreshold:
                             predictedLabel = recogniser.objName_train[max_idx]
-                            recogResult.append(
-                                [frameCount, trueClassLabels[classCount], predictedLabel, max(scores), conf_level])
-                            print("Recognition:", trueClassLabels[classCount], recogniser.objName_train[max_idx],
-                                  scores[max_idx], t1 - t0)
+                            recogResult.append([frameCount, trueClassLabels[classCount], predictedLabel, max(scores),
+                                                conf_level])
+                            #print("[Recognition] Actual:", trueClassLabels[classCount], ", Recognised:",
+                            #      recogniser.objName_train[max_idx], ", Score:", scores[max_idx], ", Time: ", t1 - t0)
                         else:
                             predictedLabel = "UNRECOGNISED"
                             recogResult.append([frameCount, trueClassLabels[classCount], predictedLabel, 0, 0])
-                            print("Recognition:", trueClassLabels[classCount], "[UNRECOGNISED]", 0, t1 - t0)
+                            #print("[Recognition] Actual:", trueClassLabels[classCount], predictedLabel, 0, t1 - t0)
                     else:
                         # All scores are zero -> object cannot be identified
                         conf_level = 0
                         predictedLabel = "UNRECOGNISED"
                         recogResult.append([frameCount, trueClassLabels[classCount], predictedLabel, 0, 0])
-                        print("Recognition:", trueClassLabels[classCount], "[UNRECOGNISED]", 0, t1 - t0)
+                        #print("Recognition:", trueClassLabels[classCount], "[UNRECOGNISED]", 0, t1 - t0)
+
+                    print(f"[Recognition] Actual: {trueClassLabels[classCount]}, Recognised: {predictedLabel},",
+                          f"Score: {max(scores)}, Time: {t1 - t0} sec")
 
                     if showRGBImg:
                         cv2.putText(rgb, predictedLabel + " ({:.0f}%)".format(conf_level * 100), (50, 50),

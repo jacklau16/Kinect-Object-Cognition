@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "object-recognition"
 version = "0.1.0"
-description = ""
+description = "CSMVI16 Coursework 2"
 authors = ["Jack Lau <jack.lau@student.reading.ac.uk>"]
 
 [tool.poetry.dependencies]
