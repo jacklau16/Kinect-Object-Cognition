@@ -1,7 +1,7 @@
 ###################################################################################################
 # File       : obj_recogniser.py
 # Description: Main class for implementation of object recognition model
-# Usage      : <Class to be instantiated and used by other Python routine
+# Usage      : <Class to be instantiated and used by other Python routine>
 ###################################################################################################
 import concurrent
 import time
