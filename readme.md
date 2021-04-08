@@ -5,7 +5,11 @@ The development is done under a virtual environment of `PyCharm`, the package de
 Python version: 3.8
 
 ## Prepare training images
+Run the following command:
+
 `python capture_train_img.py [Set 1 video folder]`
 
 ## Train and test the object recognition
+Run the following command:
+
 `python run_obj_recognition.py [Set 2 video folder]`
