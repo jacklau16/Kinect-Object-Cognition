@@ -114,11 +114,6 @@ class ObjRecogniser:
             print("Reconstructed Image has too large distance from original:", dist)
             return -1
         dist, ind = nnLearner.kneighbors([W_input.T[0:eigen_vector_used]], 2, return_distance=True)
-
-        # Discard if 1st matched item is too close to 2nd matched item => not a good match
-        #if (dist[0][1]-dist[0][0]) > 10:
-        if (dist[0][1] * 0.7) > dist[0][0]:
-            return -1
         return self.objIdx_train[ind[0][0]]
 
     def recognise_img(self, imgInput):
@@ -130,7 +125,7 @@ class ObjRecogniser:
         # if no meaningful imagette is found, simply return zero scores
         if imagettes.shape[0] == 0:
             return regResult
-
+        t0 = time.time()
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             futures = []
             for i in range(imagettes.shape[1]):
@@ -141,6 +136,7 @@ class ObjRecogniser:
                 regIdx = future.result()
                 if regIdx != -1:
                     regResult[regIdx] += 1
+        print("recognise_imagette Time:", time.time()-t0)
         return regResult
 
     def euclidean_distance(self, vector1, vector2):

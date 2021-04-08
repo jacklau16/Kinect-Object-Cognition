@@ -47,52 +47,27 @@ def main():
     labelFile = open(trueLabelsFileName, 'r')
     trueClassLabels = labelFile.read().splitlines()
 
-    #w, h = 0, 0
+    w_roi, h_roi = 0, 0
     recogResult = []
 
     startTime = time.time()
 
+    # Loop through the video frames using Freenect library
     for status, rgb, depth in FreenectPlaybackWrapper(args.videofolder, not args.no_realtime):
         frameCount += 1
         if classCount == len(trueClassLabels):
             break
         # If we have an updated RGB image, then display
         if status.updated_rgb:
-            #if (h > 0) & (w > 0):
-                #cv2.rectangle(rgb, (x+x_offset, y+y_offset), (x+x_offset+w, y+y_offset+h), (0, 0, 255))
-            #if showImg:
-            #    cv2.imshow("RGB", rgb)
-            #print(f"{frameCount}: RGB")
-            a = 1
-        # If we have an updated Depth image, then display
-        if status.updated_depth:
-            ret, thresholded = cv2.threshold(depth, depthThreshold, 255, cv2.THRESH_BINARY_INV)
-            x, y, w, h = cv2.boundingRect(thresholded)
-            if (h > 0) & (w > 0):
-                cv2.putText(depth, trueClassLabels[classCount], (50, 50), cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
-    #            cv2.rectangle(depth, (x,y), (x+w, y+h), (0,0,255))
-                if showDepthImg:
-                    cv2.imshow("Depth", depth)
-                lastObjCount = frameCount
-                newClassStarted = True
-                #predictedLabel = ''
-
+            if (h_roi > 0) & (w_roi > 0):
                 # Test Run Object Recognition
-                if (h >= recogniser.imagetteGridSize) & (w >= recogniser.imagetteGridSize) & (rgb is not None):
-                    max_score = -1
-                    max_idx = -1
-                    score = np.zeros(len(recogniser.objName_train))
+                if (h_roi >= recogniser.imagetteGridSize) & (w_roi >= recogniser.imagetteGridSize) & (rgb is not None):
                     t0 = time.time()
 
-                    imgTest = rgb[y+y_offset:y+y_offset+h, x+x_offset:x+x_offset+w, :]
+                    imgTest = rgb[y_roi + y_offset:y_roi + y_offset + h_roi, x_roi + x_offset:x_roi + x_offset + w_roi, :]
 
-                    if recogniser.resizeImage:
-                        imgTest = cv2.resize(imgTest, (200, 200), interpolation=cv2.INTER_AREA)
-
-                    if recogniser.equaliseHistogram:
-                        imgTest[:, :, 0] = cv2.equalizeHist(imgTest[:, :, 0])
-                        imgTest[:, :, 1] = cv2.equalizeHist(imgTest[:, :, 1])
-                        imgTest[:, :, 2] = cv2.equalizeHist(imgTest[:, :, 2])
+                    # Perform pre-processing of the test image
+                    imgTest = recogniser.preprocess_img(imgTest)
 
                     # Call the object recognition routine of the detector
                     scores = recogniser.recognise_img(imgTest)
@@ -109,8 +84,10 @@ def main():
                         # Assign class label only if the confidence level > threshold value
                         if conf_level > recogniser.confLevelThreshold:
                             predictedLabel = recogniser.objName_train[max_idx]
-                            recogResult.append([frameCount, trueClassLabels[classCount], predictedLabel, max(scores), conf_level])
-                            print("Recognition:", trueClassLabels[classCount], recogniser.objName_train[max_idx], scores[max_idx], t1 - t0)
+                            recogResult.append(
+                                [frameCount, trueClassLabels[classCount], predictedLabel, max(scores), conf_level])
+                            print("Recognition:", trueClassLabels[classCount], recogniser.objName_train[max_idx],
+                                  scores[max_idx], t1 - t0)
                         else:
                             predictedLabel = "UNRECOGNISED"
                             recogResult.append([frameCount, trueClassLabels[classCount], predictedLabel, 0, 0])
@@ -123,8 +100,24 @@ def main():
                         print("Recognition:", trueClassLabels[classCount], "[UNRECOGNISED]", 0, t1 - t0)
 
                     if showRGBImg:
-                        cv2.putText(rgb, predictedLabel + " ({:.0f}%)".format(conf_level*100), (50, 50), cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
-                        cv2.imshow("RGB", rgb)
+                        cv2.putText(rgb, predictedLabel + " ({:.0f}%)".format(conf_level * 100), (50, 50),
+                                    cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
+            if showRGBImg:
+                cv2.imshow("RGB", rgb)
+
+        # If we have an updated Depth image, then display
+        if status.updated_depth:
+            ret, thresholded = cv2.threshold(depth, depthThreshold, 255, cv2.THRESH_BINARY_INV)
+            x_roi, y_roi, w_roi, h_roi = cv2.boundingRect(thresholded)
+
+            if (h_roi > 0) & (w_roi > 0):
+                if showDepthImg:
+                    cv2.putText(depth, trueClassLabels[classCount], (50, 50), cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
+                lastObjCount = frameCount
+                newClassStarted = True
+
+            if showDepthImg:
+                cv2.imshow("Depth", depth)
 
         if (frameCount - lastObjCount > interClassFrameThresVal) & newClassStarted:
             classCount += 1
@@ -138,6 +131,8 @@ def main():
             break
 
     endTime = time.time()
+
+    # Print out the overall duration of the recognition process
     print("Duration:", endTime-startTime)
 
     # Export the recognition result to 'result.csv'
@@ -155,13 +150,16 @@ def plot_cm(dfResult, allLabelsFileName):
 
     labelFile = open(allLabelsFileName, 'r')
     classList = labelFile.read().splitlines()
-#    results = pd.read_csv('result.csv')
+
+    # Prepare the confusion matrices
     cm = confusion_matrix(dfResult['True Label'], dfResult['Predicted Label'], labels=classList)
     cm_normalised = confusion_matrix(dfResult['True Label'], dfResult['Predicted Label'], labels=classList,
                                      normalize='true')
-    print("Overall accuracy:", cm.diagonal().sum() / cm.sum())
     df_cm = pd.DataFrame(cm, index=classList, columns=classList)
     df_cm_normalised = pd.DataFrame(cm_normalised, index=classList, columns=classList)
+
+    # Print out the overall accuracy
+    print("Overall accuracy:", cm.diagonal().sum() / cm.sum())
 
     # Plotting the confusion matrix
     plt.figure(figsize=(10, 8))
@@ -180,8 +178,6 @@ def plot_cm(dfResult, allLabelsFileName):
     plt.xlabel("Predicted Label")
     plt.title("Normalised confusion matrix of object recognition")
     plt.show()
-
-
 
 if __name__ == "__main__":
     exit(main())
