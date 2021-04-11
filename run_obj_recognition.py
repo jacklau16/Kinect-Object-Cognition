@@ -51,7 +51,7 @@ def main():
     recogResult = []
     startTime = time.time()
 
-    print("Being object recognition...")
+    print("Begin object recognition...")
     # Loop through the video frames using Freenect library
     for status, rgb, depth in FreenectPlaybackWrapper(args.videofolder, not args.no_realtime):
         frameCount += 1
@@ -179,7 +179,7 @@ def plot_cm(dfResult, allLabelsFileName):
     ax.figure.tight_layout()
     plt.ylabel("True Label")
     plt.xlabel("Predicted Label")
-    plt.title("Normalised confusion matrix of object recognition")
+    plt.title("Normalising confusion matrix of object recognition")
     plt.show()
 
 if __name__ == "__main__":
