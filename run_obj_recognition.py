@@ -1,5 +1,6 @@
 ###################################################################################################
 # File       : run_obj_recognition.py
+# Author     : Jack Lau (jack.lau@student.reading.ac.uk)
 # Description: Load and train the Object Recogniser, then loop through the test video frames and
 #              feed images into the recogniser to perform recognition.
 # Usage      : python run_obj_recognition.py <Test video dataset path>

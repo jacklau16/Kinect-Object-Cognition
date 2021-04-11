@@ -1,5 +1,6 @@
 ###################################################################################################
 # File       : obj_recogniser.py
+# Author     : Jack Lau (jack.lau@student.reading.ac.uk)
 # Description: Main class for implementation of object recognition model
 # Usage      : <Class to be instantiated and used by other Python routine>
 ###################################################################################################

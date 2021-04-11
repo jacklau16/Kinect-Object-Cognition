@@ -1,5 +1,6 @@
 ###################################################################################################
 # File       : capture_train_img.py
+# Author     : Jack Lau (jack.lau@student.reading.ac.uk)
 # Description: Prepare training images by capturing a number of images of each object class
 #              from the provided video frames
 # Usage      : python capture_train_img.py <Training video dataset path>
