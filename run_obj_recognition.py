@@ -104,7 +104,9 @@ def main():
                           f"Score: {max(scores)}, Time: {t1 - t0} sec")
 
                     if showRGBImg:
-                        cv2.putText(rgb, predictedLabel + " ({:.0f}%)".format(conf_level * 100), (50, 50),
+                        #displayText = predictedLabel + " ({:.0f}%)".format(conf_level * 100)
+                        displayText = predictedLabel
+                        cv2.putText(rgb, displayText, (50, 50),
                                     cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
             if showRGBImg:
                 cv2.imshow("RGB", rgb)
