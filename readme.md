@@ -9,6 +9,7 @@ Run the following command:
 
 `python capture_train_img.py [Set 1 video folder]`
 
+The captured training images will be saved in the folder `./train_img/`.
 ## Train and test the object recognition
 Run the following command:
 
